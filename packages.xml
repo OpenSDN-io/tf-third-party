@@ -18,7 +18,7 @@
     <name>Google C++ Mocking and Testing Framework 1.8.1</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/g/googlemock-release-1.8.1.zip</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/googletest-1.8.1.zip</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googletest-1.8.1.zip</url>
     </urls>
     <format>zip</format>
     <rename>googletest-release-1.8.1</rename>
@@ -44,7 +44,7 @@
     <name>Google C++ Testing Framework 1.6.0</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/g/googletest-release-1.6.0.zip</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/googlecode/googletest-release-1.6.0.zip</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/googletest-release-1.6.0.zip</url>
     </urls>
     <rename>gtest-1.6.0</rename>
     <patches>
@@ -73,7 +73,7 @@
     <name>Google C++ Mocking Framework 1.6.0</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/g/googlemock-release-1.6.0.zip</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/googlecode/googlemock-release-1.6.0.zip</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/googlemock-release-1.6.0.zip</url>
     </urls>
     <format>zip</format>
     <rename>gmock-1.6.0</rename>
@@ -99,7 +99,7 @@
     <name>Google perftools</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/g/gperftools-2.1.tar.gz</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/googlecode/gperftools-2.1.tar.gz</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/gperftools-2.1.tar.gz</url>
     </urls>
     <format>tgz</format>
     <md5>5e5a981caf9baa9b4afe90a82dcf9882</md5>
@@ -124,7 +124,7 @@
     <name>Minimalistic C client for Redis v0.11</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/h/hiredis-v0.11.0.tar.gz</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/hiredis/hiredis-0.11.0.tar.gz</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/hiredis/hiredis-0.11.0.tar.gz</url>
     </urls>
     <local-filename>hiredis-v0.11.0.tar.gz</local-filename>
     <format>tgz</format>
@@ -137,7 +137,7 @@
     <name>Minimalistic C client for Redis</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/h/hiredis-master-20190604.zip</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/hiredis/hiredis-master-20190604.zip</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/hiredis/hiredis-master-20190604.zip</url>
     </urls>
     <local-filename>hiredis-master-20190604.zip</local-filename>
     <format>zip</format>
@@ -176,7 +176,7 @@
     <name>Thread Building Blocks 4.4 2018 Update 5</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/l/libtbb/2018_U5.tar.gz</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/libtbb/2018_U5.tar.gz</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/libtbb/2018_U5.tar.gz</url>
     </urls>
     <format>tgz</format>
     <md5>ff3ae09f8c23892fbc3008c39f78288f</md5>
@@ -199,7 +199,7 @@
     <name>hiredis boostasio-adapter</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/h/hiredis-boostasio-adapter-master.zip</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/hiredis/hiredis-boostasio-adapter-master.zip</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/hiredis/hiredis-boostasio-adapter-master.zip</url>
     </urls>
     <local-filename>hiredis-master.zip</local-filename>
     <format>zip</format>
@@ -272,7 +272,7 @@
     <name>JSON parser/generator for C++</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/r/rapidjson-v1.1.0.zip</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/googlecode/rapidjson-v1.1.0.zip</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/rapidjson-v1.1.0.zip</url>
     </urls>
     <format>zip</format>
     <md5>4f82cc9f41b7d39afeeec10ff8b581b9</md5>
@@ -297,7 +297,7 @@
     <name>vijava</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/v/vijava55b20130927src.jar</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/vmware/vijava55b20130927src.jar</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/vmware/vijava55b20130927src.jar</url>
     </urls>
     <local-filename>vijava55b20130927src.jar</local-filename>
     <format>zip</format>
@@ -349,7 +349,7 @@
     <name>Cni Go Deps</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/c/cni_go_deps.tar.gz</url>
-      <url canonical="true">https://github.com/tungstenfabric/tf-third-party-cache/raw/master/cni/cni_go_deps.tar.gz</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/cni/cni_go_deps.tar.gz</url>
     </urls>
     <format>tgz</format>
     <md5>823fcd824557fa0b6506e29d7591f76d</md5>
