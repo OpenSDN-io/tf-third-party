@@ -4,7 +4,7 @@
 #
 
 import os
-import platform
+import distro
 import re
 import shutil
 import subprocess
@@ -156,7 +156,7 @@ def ReconfigurePackageSources(path):
 
 def PlatformInfo():
     if sys.platform != 'darwin':
-        (distname, version, _) = platform.dist()
+        (distname, version, _) = distro.linux_distribution()
         return (distname.lower(), version)
     else:
         return "darwin", ""
