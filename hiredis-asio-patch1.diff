@@ -10,7 +10,7 @@ index 2be99ad..b123fb5 100644
 -redisBoostClient::redisBoostClient(boost::asio::io_service& io_service,redisAsyncContext *ac)
 -: socket_(io_service)
 +
-+redisBoostClient::redisBoostClient(boost::asio::io_service& io_service,
++redisBoostClient::redisBoostClient(boost::asio::io_context& io_service,
 +        redisAsyncContext *ac, tbb::mutex& mtex)
 +: socket_(io_service), mtex_(mtex), read_requested_(false), write_requested_(false), read_in_progress_(false), write_in_progress_(false), cleanup_(false)
  {
@@ -82,7 +82,7 @@ index c24140a..8ae5cc0 100644
  {
  public:
 -        redisBoostClient(boost::asio::io_service& io_service,redisAsyncContext *ac);
-+        redisBoostClient(boost::asio::io_service& io_service,
++        redisBoostClient(boost::asio::io_context& io_service,
 +                redisAsyncContext *ac,
 +                tbb::mutex &mtex);
  

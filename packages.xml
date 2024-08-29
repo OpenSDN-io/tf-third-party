@@ -157,6 +157,7 @@
     <md5>516643167c8fcf316b9457a2b920a50d</md5>
     <patches>
       <patch strip="2">log4cplus-2.1.1_patch1.diff</patch>
+      <patch strip="2">log4cplus-single-threaded.diff</patch>
     </patches>
     <platform>
       <exclude>
@@ -209,7 +210,7 @@
     <md5>c3ba292cb8a6d84da3aae774a33d4356</md5>
     <rename>hiredis-boostasio-adapter</rename>
     <patches>
-      <patch strip="2">hiredis-asio-patch1.diff</patch>
+        <patch strip="2">hiredis-asio-patch1.diff</patch>
     </patches>
   </package>
   <package>
@@ -230,8 +231,10 @@
     </urls>
     <local-filename>SimpleAmqpClient-2.4.0.tar.gz</local-filename>
     <format>tgz</format>
-    <rename>SimpleAmqpClient</rename>
     <md5>fb86236ae98cd6116cbdf94d8d5f20b0</md5>
+    <patches>
+      <patch strip="2">amqp-opensdn-boost.diff</patch>
+    </patches>
   </package>
   <package>
     <name>RabbitMQ C</name>
