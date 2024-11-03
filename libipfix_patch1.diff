@@ -6,7 +6,7 @@ diff -ru a/libipfix_110209/collector/Makefile.in b/libipfix_110209/collector/Mak
  LDFLAGS = @LDFLAGS@
  LIBS = @LIBS@ @MYSQLLIBS@ @SCTPLIBS@ @SSLLIBS@ -L../lib -L../libmisc -lipfix -lmisc 
 -CCOPT = -Wall -g
-+CCOPT = -Wall -g -fPIC
++CCOPT = -Wall -g -fPIC -fcommon
  INCLS = -I. -I.. -I../lib -I../libmisc
  CFLAGS = $(CCOPT) $(INCLS) $(DEFS)
  
@@ -20,7 +20,7 @@ diff -ru a/libipfix_110209/lib/Makefile.in b/libipfix_110209/lib/Makefile.in
 -CCOPT = -Wall -g
 -#CCOPT = -Wall -g -fPIC
 +#CCOPT = -Wall -g
-+CCOPT = -Wall -g -fPIC
++CCOPT = -Wall -g -fPIC -fcommon
  INCLS = -I. -I.. -I../.. -I../libmisc
  CFLAGS = $(CCOPT) $(INCLS) $(DEFS)
  LIBMISCDIR = ../libmisc
@@ -56,7 +56,7 @@ diff -ru a/libipfix_110209/libmisc/Makefile.in b/libipfix_110209/libmisc/Makefil
  LDFLAGS = @LDFLAGS@
  LIBS = @LIBS@ -lm @PCAPLIBS@
 -CCOPT = -Wall -g
-+CCOPT = -Wall -g -fPIC
++CCOPT = -Wall -g -fPIC -fcommon
  INCLS = -I. -I.. -I../.. @PCAPINCLS@
  CFLAGS = $(CCOPT) $(INCLS) $(DEFS)
  
