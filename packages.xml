@@ -102,7 +102,7 @@
       <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/gperftools-2.1.tar.gz</url>
     </urls>
     <format>tgz</format>
-    <md5>5e5a981caf9baa9b4afe90a82dcf9882</md5>
+    <md5>0cf0d05a1490fe443c2c672943b9910f</md5>
     <platform>
       <exclude>
         <distribution>
