@@ -98,8 +98,8 @@
   <package>
     <name>Google perftools</name>
     <urls>
-      <url>{{ site_mirror }}/contrail-third-party/g/gperftools-2.1.tar.gz</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/gperftools-2.1.tar.gz</url>
+      <url>{{ site_mirror }}/contrail-third-party/g/gperftools-2.1.1.tar.gz</url>
+      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/gperftools-2.1.1.tar.gz</url>
     </urls>
     <format>tgz</format>
     <md5>0cf0d05a1490fe443c2c672943b9910f</md5>
