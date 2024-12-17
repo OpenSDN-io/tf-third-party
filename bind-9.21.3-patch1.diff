@@ -1,0 +1,1116 @@
+diff --git a/bind-9.21.3/bin/named/include/named/globals.h b/bind-9.21.3/bin/named/include/named/globals.h
+index a739df0..f20b320 100644
+--- a/bind-9.21.3/bin/named/include/named/globals.h
++++ b/bind-9.21.3/bin/named/include/named/globals.h
+@@ -48,6 +48,12 @@
+ #define NAMED_RUN_PID_DIR 1
+ #endif /* ifndef NAMED_RUN_PID_DIR */
+
++#ifdef CONTRAIL_DNS
++#include <isc/list.h>
++#include <dns/types.h>
++extern dns_viewlist_t *named_viewlist;
++#endif
++
+ EXTERN isc_mem_t *named_g_mctx		      INIT(NULL);
+ EXTERN unsigned int named_g_cpus	      INIT(0);
+ EXTERN isc_loop_t *named_g_mainloop	      INIT(NULL);
+diff --git a/bind-9.21.3/bin/named/server.c b/bind-9.21.3/bin/named/server.c
+index 4b624d7..0fe77f3 100644
+--- a/bind-9.21.3/bin/named/server.c
++++ b/bind-9.21.3/bin/named/server.c
+@@ -463,6 +463,22 @@ configure_forward(const cfg_obj_t *config, dns_view_t *view,
+ 		  const dns_name_t *origin, const cfg_obj_t *forwarders,
+ 		  const cfg_obj_t *forwardtype);
+
++#ifdef CONTRAIL_DNS
++static isc_result_t
++configure_view_virtual_forward(dns_view_t *view);
++
++static isc_result_t
++configure_zone_virtual_forward(dns_view_t *view);
++
++#define TXT_VIEW_TAG "view="
++#define TXT_VIEW_TAG_LEN strlen(TXT_VIEW_TAG)
++#define DEFAULT_VIEW_NAME "_default_view_"
++#define DEFAULT_VIEW_LEN strlen(DEFAULT_VIEW_NAME)
++
++static inline bool
++allowed_view_name(dns_rdata_t *view_rdata, char *name);
++#endif
++
+ static isc_result_t
+ configure_alternates(const cfg_obj_t *config, dns_view_t *view,
+ 		     const cfg_obj_t *alternates);
+@@ -3817,6 +3833,9 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist, cfg_obj_t *config,
+ 	const cfg_obj_t *voptions = NULL;
+ 	const cfg_obj_t *forwardtype;
+ 	const cfg_obj_t *forwarders;
++#ifdef CONTRAIL_DNS
++	const cfg_obj_t *virtual_forwarder;
++#endif
+ 	const cfg_obj_t *alternates;
+ 	const cfg_obj_t *zonelist;
+ 	const cfg_obj_t *dlzlist;
+@@ -4741,6 +4760,14 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist, cfg_obj_t *config,
+ 		CHECK(configure_forward(config, view, dns_rootname, forwarders,
+ 					forwardtype));
+ 	}
++#ifdef CONTRAIL_DNS
++	virtual_forwarder = NULL;
++	(void)named_config_get(maps, "virtual-forwarder", &virtual_forwarder);
++	if (virtual_forwarder != NULL) {
++		view->next_vdns_name = isc_mem_strdup(view->mctx,
++		                       cfg_obj_asstring(virtual_forwarder));
++	}
++#endif
+
+ 	/*
+ 	 * Dual Stack Servers.
+@@ -6163,6 +6190,60 @@ cleanup:
+ 	return result;
+ }
+
++#ifdef CONTRAIL_DNS
++static isc_result_t
++configure_view_virtual_forward(dns_view_t *view)
++{
++	isc_result_t result;
++	dns_view_t *pview = NULL;
++
++	if (view->next_vdns_name == NULL)
++		return ISC_R_SUCCESS;
++
++	result = dns_viewlist_find(&named_g_server->viewlist, view->next_vdns_name,
++                               view->rdclass, &pview);
++	if (result == ISC_R_SUCCESS) {
++		view->next_virtual_dns = pview;
++	}
++	else if (result == ISC_R_NOTFOUND) {
++		/* If not found, next_virtual_dns will get updated when */
++		/* view is configured                                   */
++		result = ISC_R_SUCCESS;
++	}
++
++	if (pview != NULL)
++		dns_view_detach(&pview);
++
++	return (result);
++}
++
++static isc_result_t
++configure_zone_virtual_forward(dns_view_t *view)
++{
++       return dns_zt_setzonenextview(view, &named_g_server->viewlist);
++}
++
++static inline bool
++allowed_view_name(dns_rdata_t *view_rdata, char *name) {
++        if (view_rdata == NULL) {
++                if (strlen(name) == DEFAULT_VIEW_LEN &&
++                    memcmp(name, DEFAULT_VIEW_NAME, DEFAULT_VIEW_LEN) == 0)
++                        return (true);
++                else
++                        return (false);
++        }
++
++        unsigned char *data = view_rdata->data;
++        if ((data == NULL) ||
++                (strlen(name) != view_rdata->length - TXT_VIEW_TAG_LEN - 1) ||
++                (memcmp(&data[1], TXT_VIEW_TAG, TXT_VIEW_TAG_LEN) != 0) ||
++                (memcmp(&data[TXT_VIEW_TAG_LEN + 1], name, strlen(name)) != 0))
++                        return (false);
++
++        return (true);
++}
++#endif
++
+ static isc_result_t
+ get_viewinfo(const cfg_obj_t *vconfig, const char **namep,
+ 	     dns_rdataclass_t *classp) {
+@@ -6298,6 +6379,9 @@ configure_zone(const cfg_obj_t *config, const cfg_obj_t *zconfig,
+ 	dns_rdataclass_t zclass;
+ 	const char *ztypestr;
+ 	dns_rpz_num_t rpz_num;
++#ifdef CONTRAIL_DNS
++	const cfg_obj_t *virtual_server;
++#endif
+ 	bool zone_is_catz = false;
+ 	bool zone_maybe_inline = false;
+ 	bool inline_signing = false;
+@@ -6603,6 +6687,20 @@ configure_zone(const cfg_obj_t *config, const cfg_obj_t *zconfig,
+ 					forwardtype));
+ 	}
+
++#ifdef CONTRAIL_DNS
++	/*
++	 * If the zone is static-stub type, copy the virtual forwarder if defined
++	 */
++	if (strcasecmp(ztypestr, "static-stub") == 0) {
++		virtual_server = NULL;
++		(void)cfg_map_get(zoptions, "virtual-server-name", &virtual_server);
++		if (virtual_server != NULL) {
++			dns_zone_setnextvdnsname(zone,
++						 cfg_obj_asstring(virtual_server));
++		}
++	}
++#endif
++
+ 	/*
+ 	 * Mark whether the zone was originally added at runtime or not
+ 	 */
+@@ -8898,6 +8996,12 @@ load_configuration(const char *filename, named_server_t *server,
+ 	     view = ISC_LIST_NEXT(view, link))
+ 	{
+ 		view->viewlist = &server->viewlist;
++#ifdef CONTRAIL_DNS
++		/* Update the next virtual forwarder for all the views                */
++		/* This cannot be done in configure_view as all the views arent ready */
++		configure_view_virtual_forward(view);
++		configure_zone_virtual_forward(view);
++#endif
+ 	}
+
+ 	/* Swap our new cache list with the production one. */
+@@ -9733,6 +9905,19 @@ get_matching_view_sync(isc_netaddr_t *srcaddr, isc_netaddr_t *destaddr,
+ 		if (message->rdclass == view->rdclass ||
+ 		    message->rdclass == dns_rdataclass_any)
+ 		{
++#ifdef CONTRAIL_DNS
++			/*
++			 * If there was a TXT record in the request, match the view
++			 * based on the domain provided
++			 */
++			if (allowed_view_name(message->view_rdata, view->name))
++			{
++				dns_message_resetsig(message);
++				*sigresult = dns_message_checksig(message, view);
++				dns_view_attach(view, viewp);
++				return ISC_R_SUCCESS;
++			}
++#else
+ 			const dns_name_t *tsig = NULL;
+
+ 			dns_message_resetsig(message);
+@@ -9751,6 +9936,7 @@ get_matching_view_sync(isc_netaddr_t *srcaddr, isc_netaddr_t *destaddr,
+ 				dns_view_attach(view, viewp);
+ 				return ISC_R_SUCCESS;
+ 			}
++#endif
+ 		}
+ 	}
+
+@@ -9960,6 +10146,10 @@ named_server_create(isc_mem_t *mctx, named_server_t **serverp) {
+ 	ISC_LIST_INIT(server->keystorelist);
+ 	ISC_LIST_INIT(server->viewlist);
+
++#ifdef CONTRAIL_DNS
++	named_viewlist = &server->viewlist;
++#endif
++
+ 	CHECKFATAL(dns_rootns_create(mctx, dns_rdataclass_in, NULL,
+ 				     &server->in_roothints),
+ 		   "setting up root hints");
+diff --git a/bind-9.21.3/bin/rndc/Makefile.in b/bind-9.21.3/bin/rndc/Makefile.in
+index 3d1f12e..56cf787 100644
+--- a/bind-9.21.3/bin/rndc/Makefile.in
++++ b/bind-9.21.3/bin/rndc/Makefile.in
+@@ -95,7 +95,7 @@ target_triplet = @target@
+ @HOST_MACOS_TRUE@am__append_1 = \
+ @HOST_MACOS_TRUE@	-Wl,-flat_namespace
+
+-sbin_PROGRAMS = rndc$(EXEEXT)
++sbin_PROGRAMS = rndc$(EXEEXT) librndc.a
+ subdir = bin/rndc
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
+@@ -210,7 +210,7 @@ BUILD_OBJEXT = @BUILD_OBJEXT@
+ CC = @CC@
+ CCDEPMODE = @CCDEPMODE@
+ CC_FOR_BUILD = @CC_FOR_BUILD@
+-CFLAGS = @CFLAGS@
++CFLAGS = @CFLAGS@ -DCONTRAIL_DNS
+ CFLAGS_FOR_BUILD = @CFLAGS_FOR_BUILD@
+ CMOCKA_CFLAGS = @CMOCKA_CFLAGS@
+ CMOCKA_LIBS = @CMOCKA_LIBS@
+@@ -558,6 +558,12 @@ rndc$(EXEEXT): $(rndc_OBJECTS) $(rndc_DEPENDENCIES) $(EXTRA_rndc_DEPENDENCIES)
+ 	@rm -f rndc$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(rndc_OBJECTS) $(rndc_LDADD) $(LIBS)
+
++AR =           /usr/bin/ar
++ARFLAGS =      cruv
++librndc.a: librndc.o $(rndc_OBJECTS) $(rndc_DEPENDENCIES) $(EXTRA_rndc_DEPENDENCIES)
++	${AR} ${ARFLAGS} $@ librndc.o util.o
++	${RANLIB} $@
++
+ mostlyclean-compile:
+ 	-rm -f *.$(OBJEXT)
+
+@@ -581,6 +587,11 @@ am--depfiles: $(am__depfiles_remade)
+ @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+ @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ $<
+
++librndc.o: rndc.c
++	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
++	$(COMPILE) -DJUNIPER_RNDC -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
++	$(am__mv) $$depbase.Tpo $$depbase.Po
++
+ .c.obj:
+ @am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+ @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@@ -698,8 +709,9 @@ installdirs:
+ 	for dir in "$(DESTDIR)$(sbindir)"; do \
+ 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
+ 	done
+-install: $(BUILT_SOURCES)
++install: $(BUILT_SOURCES) librndc.a
+ 	$(MAKE) $(AM_MAKEFLAGS) install-am
++	${LIBTOOL_MODE_INSTALL} ${INSTALL_DATA} librndc.a ${DESTDIR}${libdir}
+ install-exec: $(BUILT_SOURCES)
+ 	$(MAKE) $(AM_MAKEFLAGS) install-exec-am
+ install-data: install-data-am
+diff --git a/bind-9.21.3/bin/rndc/rndc.c b/bind-9.21.3/bin/rndc/rndc.c
+index 9750d5d..0510e15 100644
+--- a/bind-9.21.3/bin/rndc/rndc.c
++++ b/bind-9.21.3/bin/rndc/rndc.c
+@@ -53,6 +53,15 @@
+ #define SERVERADDRS  10
+ #define RNDC_TIMEOUT 60 * 1000
+
++#ifdef JUNIPER_RNDC
++int rndc_main(int argc, char** argv);
++void rndc_reconfig(void);
++void *dnsd_rndc_start(void *arg);
++
++int pipefd[2];
++static const char *rndc_args[] = { "rndc", "-c", "/etc/contrail/rndc.conf", "-p", "11223", "reconfig" };
++#endif
++
+ const char *progname = NULL;
+ bool verbose;
+
+@@ -805,8 +814,31 @@ parse_config(isc_mem_t *mctx, const char *keyname, cfg_parser_t **pctxp,
+ 	*configp = config;
+ }
+
+-int
+-main(int argc, char **argv) {
++#ifdef JUNIPER_RNDC
++void *dnsd_rndc_start(void *arg) {
++	// socket_server();
++	char buf[32];
++	if (pipe(pipefd))
++		exit(-1);
++	while (1) {
++		if (read(pipefd[0], buf, 4096) > 0) {
++			rndc_main(6, rndc_args);
++		}
++	}
++	return NULL;
++}
++
++void rndc_reconfig() {
++	char buf[32];
++	write(pipefd[1], buf, 1);
++}
++#endif
++
++#ifndef JUNIPER_RNDC
++int main(int argc, const char **argv) {
++#else
++int rndc_main(int argc, char **argv) {
++#endif
+ 	isc_result_t result = ISC_R_SUCCESS;
+ 	bool show_final_mem = false;
+ 	isc_logconfig_t *logconfig = NULL;
+diff --git a/bind-9.21.3/configure b/bind-9.21.3/configure
+index b954d4c..d6e3779 100755
+--- a/bind-9.21.3/configure
++++ b/bind-9.21.3/configure
+@@ -3038,6 +3038,7 @@ fi
+ ## Main body of script. ##
+ ## -------------------- ##
+
++CFLAGS=$CFLAGS\ -DCONTRAIL_DNS
+ ac_ext=c
+ ac_cpp='$CPP $CPPFLAGS'
+ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+@@ -23068,7 +23069,7 @@ if test ${with_json_c+y}
+ then :
+   withval=$with_json_c;
+ else $as_nop
+-  with_json_c="detect"
++  with_json_c="no"
+ fi
+
+
+diff --git a/bind-9.21.3/lib/dns/acl.c b/bind-9.21.3/lib/dns/acl.c
+index 244995c..681971e 100644
+--- a/bind-9.21.3/lib/dns/acl.c
++++ b/bind-9.21.3/lib/dns/acl.c
+@@ -635,6 +635,35 @@ dns_acl_allowed(isc_netaddr_t *addr, const dns_name_t *signer, dns_acl_t *acl,
+ 	return false;
+ }
+
++#ifdef CONTRAIL_DNS
++#include <dns/rdata.h>
++#define TXT_VIEW_TAG "view="
++#define TXT_VIEW_TAG_LEN strlen(TXT_VIEW_TAG)
++#define DEFAULT_VIEW_NAME "_default_view_"
++#define DEFAULT_VIEW_LEN strlen(DEFAULT_VIEW_NAME)
++
++static inline bool
++allowed_view_name(dns_rdata_t *view_rdata, char *name) {
++	if (view_rdata == NULL) {
++		if (strlen(name) == DEFAULT_VIEW_LEN &&
++                    memcmp(name, DEFAULT_VIEW_NAME, DEFAULT_VIEW_LEN) == 0)
++			return (true);
++		else
++			return (false);
++	}
++
++	unsigned char *data = view_rdata->data;
++	if ((data == NULL) ||
++		(strlen(name) != view_rdata->length - TXT_VIEW_TAG_LEN - 1) ||
++		(memcmp(&data[1], TXT_VIEW_TAG, TXT_VIEW_TAG_LEN) != 0) ||
++		(memcmp(&data[TXT_VIEW_TAG_LEN + 1], name, strlen(name)) != 0))
++			return (false);
++
++	return (true);
++}
++
++#endif
++
+ /*
+  * Initialize ACL environment, setting up localhost and localnets ACLs
+  */
+diff --git a/bind-9.21.3/lib/dns/include/dns/message.h b/bind-9.21.3/lib/dns/include/dns/message.h
+index 62a00ce..7b4e366 100644
+--- a/bind-9.21.3/lib/dns/include/dns/message.h
++++ b/bind-9.21.3/lib/dns/include/dns/message.h
+@@ -347,7 +347,9 @@ struct dns_message {
+
+ 	dns_rdatasetorderfunc_t order;
+ 	dns_sortlist_arg_t	order_arg;
+-
++#ifdef CONTRAIL_DNS
++	dns_rdata_t *                   view_rdata;
++#endif
+ 	dns_indent_t indent;
+
+ 	dns_minttl_t minttl[DNS_SECTION_MAX];
+diff --git a/bind-9.21.3/lib/dns/include/dns/view.h b/bind-9.21.3/lib/dns/include/dns/view.h
+index c82708c..42ae87d 100644
+--- a/bind-9.21.3/lib/dns/include/dns/view.h
++++ b/bind-9.21.3/lib/dns/include/dns/view.h
+@@ -194,6 +194,10 @@ struct dns_view {
+ 	dns_acl_t *matchclients;
+ 	dns_acl_t *matchdestinations;
+ 	bool	   matchrecursiveonly;
++#ifdef CONTRAIL_DNS
++	char *              next_vdns_name;
++	dns_view_t *        next_virtual_dns;    /* next virtual dns server */
++#endif
+
+ 	/* Locked by themselves. */
+ 	isc_refcount_t references;
+diff --git a/bind-9.21.3/lib/dns/include/dns/zone.h b/bind-9.21.3/lib/dns/include/dns/zone.h
+index 8165c5a..1fc104f 100644
+--- a/bind-9.21.3/lib/dns/include/dns/zone.h
++++ b/bind-9.21.3/lib/dns/include/dns/zone.h
+@@ -250,6 +250,45 @@ dns_zone_getview(dns_zone_t *zone);
+  *\li	'zone' to be a valid zone.
+  */
+
++#ifdef CONTRAIL_DNS
++char *
++dns_zone_getnextvdnsname(dns_zone_t *zone);
++/*%<
++ *     Returns the zone's next virtual forwarder name
++ *
++ * Requires:
++ *\li  'zone' to be a valid zone.
++ */
++
++void
++dns_zone_setnextvdnsname(dns_zone_t *zone, const char *name);
++/*%<
++ *     Configures the zone's next virtual forwarder name
++ *
++ * Requires:
++ *\li  'zone' to be a valid zone.
++ */
++
++dns_view_t *
++dns_zone_getnextview(dns_zone_t *zone);
++/*%<
++ *     Returns the zone's next view (associated virtual forwarder of the zone).
++ *
++ * Requires:
++ *\li  'zone' to be a valid zone.
++ */
++
++isc_result_t
++dns_zone_setnextview(dns_zone_t *zone, dns_viewlist_t *viewlist);
++/*%<
++ *     Updates the zone's next view (associated virtual forwarder of the zone).
++ *
++ * Requires:
++ *\li  'zone' to be a valid zone.
++ */
++#endif
++
++
+ void
+ dns_zone_setviewcommit(dns_zone_t *zone);
+ /*%<
+diff --git a/bind-9.21.3/lib/dns/include/dns/zt.h b/bind-9.21.3/lib/dns/include/dns/zt.h
+index 3ed7491..1e96786 100644
+--- a/bind-9.21.3/lib/dns/include/dns/zt.h
++++ b/bind-9.21.3/lib/dns/include/dns/zt.h
+@@ -186,6 +186,17 @@ dns_zt_apply(dns_zt_t *zt, bool stop, isc_result_t *sub,
+  *	the first error code from 'action' is returned.
+  */
+
++#ifdef CONTRAIL_DNS
++isc_result_t
++dns_zt_setzonenextview(dns_view_t *view, dns_viewlist_t *viewlist);
++/*%<
++ *     Updates the next view of all zones in the view
++ *
++ * Returns:
++ *\li  #ISC_R_SUCCESS
++ */
++#endif
++
+ bool
+ dns_zt_loadspending(dns_zt_t *zt);
+ /*%<
+diff --git a/bind-9.21.3/lib/dns/message.c b/bind-9.21.3/lib/dns/message.c
+index 096784d..42de5f2 100644
+--- a/bind-9.21.3/lib/dns/message.c
++++ b/bind-9.21.3/lib/dns/message.c
+@@ -1320,6 +1320,9 @@ getsection(isc_buffer_t *source, dns_message_t *msg, dns_decompress_t dctx,
+ 		    rdtype != dns_rdatatype_key &&  /* in a TKEY query */
+ 		    rdtype != dns_rdatatype_sig &&  /* SIG(0) */
+ 		    rdtype != dns_rdatatype_tkey && /* Win2000 TKEY */
++#ifdef CONTRAIL_DNS
++		    rdtype != dns_rdatatype_txt && /* TXT */
++#endif
+ 		    msg->rdclass != dns_rdataclass_any &&
+ 		    msg->rdclass != rdclass)
+ 		{
+@@ -1637,6 +1640,17 @@ getsection(isc_buffer_t *source, dns_message_t *msg, dns_decompress_t dctx,
+ 				UNREACHABLE();
+ 			}
+ 		}
++#ifdef CONTRAIL_DNS
++		/*
++		* We get the domain name in a TXT record in the additional section
++		* in the DNS packets. Identify such rdata and keep a reference to it.
++		*/
++		if (rdtype == dns_rdatatype_txt &&
++				sectionid == DNS_SECTION_ADDITIONAL) {
++			msg->view_rdata = rdata;
++		}
++#endif
++
+
+ 		/*
+ 		 * Minimize TTLs.
+@@ -1791,6 +1805,9 @@ dns_message_parse(dns_message_t *msg, isc_buffer_t *source,
+
+ 	msg->header_ok = 1;
+ 	msg->state = DNS_SECTION_QUESTION;
++#ifdef CONTRAIL_DNS
++	msg->view_rdata = NULL;
++#endif
+
+ 	dctx = DNS_DECOMPRESS_ALWAYS;
+
+diff --git a/bind-9.21.3/lib/dns/view.c b/bind-9.21.3/lib/dns/view.c
+index 5251f7a..74f40d6 100644
+--- a/bind-9.21.3/lib/dns/view.c
++++ b/bind-9.21.3/lib/dns/view.c
+@@ -306,6 +306,12 @@ destroy(dns_view_t *view) {
+ 	if (view->matchdestinations != NULL) {
+ 		dns_acl_detach(&view->matchdestinations);
+ 	}
++#ifdef CONTRAIL_DNS
++	if (view->next_vdns_name != NULL)
++		isc_mem_free(view->mctx, view->next_vdns_name);
++	view->next_vdns_name = NULL;
++	view->next_virtual_dns = NULL;
++#endif
+ 	if (view->cacheacl != NULL) {
+ 		dns_acl_detach(&view->cacheacl);
+ 	}
+diff --git a/bind-9.21.3/lib/dns/zone.c b/bind-9.21.3/lib/dns/zone.c
+index ddb7ae2..299d638 100644
+--- a/bind-9.21.3/lib/dns/zone.c
++++ b/bind-9.21.3/lib/dns/zone.c
+@@ -376,6 +376,11 @@ struct dns_zone {
+ 	dns_checkmxfunc_t checkmx;
+ 	dns_checksrvfunc_t checksrv;
+ 	dns_checknsfunc_t checkns;
++#ifdef CONTRAIL_DNS
++	/* the next view to use when virtual forwarder is configured */
++	char *next_vdns_name;
++	dns_view_t *zone_next_view;
++#endif
+ 	/*%
+ 	 * Zones in certain states such as "waiting for zone transfer"
+ 	 * or "zone transfer in progress" are kept on per-state linked lists
+@@ -1371,6 +1376,12 @@ zone_free(dns_zone_t *zone) {
+ 	if (zone->gluecachestats != NULL) {
+ 		isc_stats_detach(&zone->gluecachestats);
+ 	}
++#ifdef CONTRAIL_DNS
++	if (zone->next_vdns_name != NULL)
++		isc_mem_free(zone->mctx, zone->next_vdns_name);
++	zone->next_vdns_name = NULL;
++	zone->zone_next_view = NULL;
++#endif
+
+ 	/* last stuff */
+ 	ZONEDB_DESTROYLOCK(&zone->dblock);
+@@ -1379,6 +1390,51 @@ zone_free(dns_zone_t *zone) {
+ 	isc_mem_putanddetach(&zone->mctx, zone, sizeof(*zone));
+ }
+
++#ifdef CONTRAIL_DNS
++char *
++dns_zone_getnextvdnsname(dns_zone_t *zone) {
++	REQUIRE(DNS_ZONE_VALID(zone));
++	return (zone->next_vdns_name);
++}
++
++void
++dns_zone_setnextvdnsname(dns_zone_t *zone, const char *name) {
++	REQUIRE(DNS_ZONE_VALID(zone));
++	zone->next_vdns_name = isc_mem_strdup(zone->mctx, name);
++}
++
++dns_view_t *
++dns_zone_getnextview(dns_zone_t *zone) {
++	REQUIRE(DNS_ZONE_VALID(zone));
++	return (zone->zone_next_view);
++}
++
++isc_result_t
++dns_zone_setnextview(dns_zone_t *zone, dns_viewlist_t *viewlist)
++{
++	REQUIRE(DNS_ZONE_VALID(zone));
++	isc_result_t result;
++	if (zone->next_vdns_name != NULL) {
++		dns_view_t *pview = NULL;
++		result = dns_viewlist_find(viewlist, zone->next_vdns_name,
++					   zone->view->rdclass, &pview);
++		if (result == ISC_R_SUCCESS) {
++			zone->zone_next_view = pview;
++		}
++		else if (result == ISC_R_NOTFOUND) {
++			/* If not found, zone_next_view will get updated when */
++			/* view is configured                                 */
++			result = ISC_R_SUCCESS;
++		}
++
++		if (pview != NULL)
++			dns_view_detach(&pview);
++	}
++	return (result);
++}
++#endif
++
++
+ /*
+  * Returns true iff this the signed side of an inline-signing zone.
+  * Caller should hold zone lock.
+diff --git a/bind-9.21.3/lib/dns/zt.c b/bind-9.21.3/lib/dns/zt.c
+index b4e75c1..9b273ae 100644
+--- a/bind-9.21.3/lib/dns/zt.c
++++ b/bind-9.21.3/lib/dns/zt.c
+@@ -540,3 +540,18 @@ dns_zt_apply(dns_zt_t *zt, bool stop, isc_result_t *sub,
+
+ 	return result;
+ }
++
++#ifdef CONTRAIL_DNS
++static isc_result_t
++setzonenextview_action(dns_zone_t *zone, void *uap) {
++	dns_viewlist_t *viewlist = uap;
++	dns_zone_setnextview(zone, viewlist);
++	return (ISC_R_SUCCESS);
++}
++
++isc_result_t
++dns_zt_setzonenextview(dns_view_t *view, dns_viewlist_t *viewlist) {
++	return dns_zt_apply(view->zonetable, false, NULL,
++	                    setzonenextview_action, viewlist);
++}
++#endif
+diff --git a/bind-9.21.3/lib/isccfg/check.c b/bind-9.21.3/lib/isccfg/check.c
+index 4609734..31cbaef 100644
+--- a/bind-9.21.3/lib/isccfg/check.c
++++ b/bind-9.21.3/lib/isccfg/check.c
+@@ -361,6 +361,16 @@ check_forward(const cfg_obj_t *config, const cfg_obj_t *options,
+ 	return ISC_R_SUCCESS;
+ }
+
++#ifdef CONTRAIL_DNS
++static isc_result_t
++check_virtual_forward(const cfg_obj_t *options)
++{
++	const cfg_obj_t *virtual_forwarder = NULL;
++	(void)cfg_map_get(options, "virtual-forwarder", &virtual_forwarder);
++	return (ISC_R_SUCCESS);
++}
++#endif
++
+ static isc_result_t
+ disabled_algorithms(const cfg_obj_t *disabled) {
+ 	isc_result_t result = ISC_R_SUCCESS;
+@@ -3891,6 +3901,13 @@ check_zoneconf(const cfg_obj_t *zconfig, const cfg_obj_t *voptions,
+ 		}
+ 	}
+
++#ifdef CONTRAIL_DNS
++	if (ztype == CFG_ZONE_STATICSTUB) {
++		const cfg_obj_t *virtual_server = NULL;
++		(void)cfg_map_get(zoptions, "virtual-server-name", &virtual_server);
++	}
++#endif
++
+ 	/*
+ 	 * Make sure there is no other zone with the same key directory (from
+ 	 * (key-directory or key-store/directory) and a different dnssec-policy.
+@@ -5514,6 +5531,13 @@ check_viewconf(const cfg_obj_t *config, const cfg_obj_t *voptions,
+ 		result = ISC_R_FAILURE;
+ 	}
+
++#ifdef CONTRAIL_DNS
++	if (voptions != NULL) {
++		if (check_virtual_forward(voptions) != ISC_R_SUCCESS)
++			result = ISC_R_FAILURE;
++	}
++#endif
++
+ 	/*
+ 	 * Check non-zero options at the global and view levels.
+ 	 */
+diff --git a/bind-9.21.3/lib/isccfg/namedconf.c b/bind-9.21.3/lib/isccfg/namedconf.c
+index 02057b2..85bdd20 100644
+--- a/bind-9.21.3/lib/isccfg/namedconf.c
++++ b/bind-9.21.3/lib/isccfg/namedconf.c
+@@ -2172,6 +2172,9 @@ static cfg_clausedef_t view_clauses[] = {
+  * Clauses that can be found within the 'view' statement only.
+  */
+ static cfg_clausedef_t view_only_clauses[] = {
++#ifdef CONTRAIL_DNS
++	{ "virtual-forwarder", &cfg_type_qstring, 0 },
++#endif
+ 	{ "match-clients", &cfg_type_bracketed_aml, 0 },
+ 	{ "match-destinations", &cfg_type_bracketed_aml, 0 },
+ 	{ "match-recursive-only", &cfg_type_boolean, 0 },
+@@ -2454,6 +2457,9 @@ static cfg_clausedef_t zone_only_clauses[] = {
+ 	{ "server-addresses", &cfg_type_bracketed_netaddrlist,
+ 	  CFG_ZONE_STATICSTUB },
+ 	{ "server-names", &cfg_type_namelist, CFG_ZONE_STATICSTUB },
++#ifdef CONTRAIL_DNS
++	{ "virtual-server-name", &cfg_type_qstring, CFG_ZONE_STATICSTUB },
++#endif
+ 	{ "update-policy", &cfg_type_updatepolicy, CFG_ZONE_PRIMARY },
+ 	{ NULL, NULL, 0 }
+ };
+diff --git a/bind-9.21.3/lib/ns/Makefile.am b/bind-9.21.3/lib/ns/Makefile.am
+index a1533c9..c3b59af 100644
+--- a/bind-9.21.3/lib/ns/Makefile.am
++++ b/bind-9.21.3/lib/ns/Makefile.am
+@@ -42,7 +42,9 @@ libns_la_CPPFLAGS =				\
+ 	$(LIBISC_CFLAGS)			\
+ 	$(LIBNS_CFLAGS)				\
+ 	$(LIBUV_CFLAGS)				\
+-	$(OPENSSL_CFLAGS)
++	$(OPENSSL_CFLAGS)			\
++	-I$(top_srcdir)/bin/named/include \
++	-I$(top_srcdir)/lib/isccfg/include
+
+ libns_la_LIBADD =	\
+ 	$(LIBDNS_LIBS)	\
+diff --git a/bind-9.21.3/lib/ns/include/ns/query.h b/bind-9.21.3/lib/ns/include/ns/query.h
+index 572e5ad..64ddeff 100644
+--- a/bind-9.21.3/lib/ns/include/ns/query.h
++++ b/bind-9.21.3/lib/ns/include/ns/query.h
+@@ -28,6 +28,13 @@
+
+ #include <ns/types.h>
+
++#ifdef CONTRAIL_DNS
++typedef struct visited_views {
++	dns_view_t *view;
++	ISC_LINK(struct visited_views) link;
++} visited_views_t;
++#endif
++
+ /*% nameserver database version structure */
+ typedef struct ns_dbversion {
+ 	dns_db_t	*db;
+@@ -105,6 +112,10 @@ typedef struct ns_query_recparam {
+ struct ns_query {
+ 	unsigned int	 attributes;
+ 	unsigned int	 restarts;
++#ifdef CONTRAIL_DNS
++	unsigned int	vdns_restarts; /* count query restarts for next virtual dns server */
++	ISC_LIST(visited_views_t)	visited_view_list;
++#endif
+ 	bool		 timerset;
+ 	dns_name_t	*qname;
+ 	dns_name_t	*origqname;
+@@ -232,6 +243,12 @@ struct query_ctx {
+
+ 	isc_result_t result; /* query result */
+ 	int	     line;   /* line to report error */
++#ifdef CONTRAIL_DNS
++	bool static_stub_vdns_zone;
++	bool want_vdns_restart;
++	dns_viewlist_t *viewlist;
++	isc_result_t db_find_result;
++#endif
+ };
+
+ typedef isc_result_t (*ns_query_starthookasync_t)(query_ctx_t *qctx,
+diff --git a/bind-9.21.3/lib/ns/query.c b/bind-9.21.3/lib/ns/query.c
+index ee7b83a..c10020f 100644
+--- a/bind-9.21.3/lib/ns/query.c
++++ b/bind-9.21.3/lib/ns/query.c
+@@ -13,6 +13,10 @@
+
+ /*! \file */
+
++#ifdef CONTRAIL_DNS
++#include <named/globals.h>
++#endif
++
+ #include <ctype.h>
+ #include <inttypes.h>
+ #include <stdbool.h>
+@@ -771,6 +775,9 @@ static void
+ query_reset(ns_client_t *client, bool everything) {
+ 	isc_buffer_t *dbuf, *dbuf_next;
+ 	ns_dbversion_t *dbversion, *dbversion_next;
++#ifdef CONTRAIL_DNS
++	 visited_views_t *visited_view, *next_view;
++#endif
+
+ 	CTRACE(ISC_LOG_DEBUG(3), "query_reset");
+
+@@ -852,6 +859,16 @@ query_reset(ns_client_t *client, bool everything) {
+ 	client->query.attributes = (NS_QUERYATTR_RECURSIONOK |
+ 				    NS_QUERYATTR_CACHEOK | NS_QUERYATTR_SECURE);
+ 	client->query.restarts = 0;
++#ifdef CONTRAIL_DNS
++	client->query.vdns_restarts = 0;
++	for (visited_view = ISC_LIST_HEAD(client->query.visited_view_list);
++			visited_view != NULL;
++			visited_view = next_view) {
++		next_view = ISC_LIST_NEXT(visited_view, link);
++		isc_mem_put(client->manager->mctx, visited_view, sizeof(*visited_view));
++	}
++	ISC_LIST_INIT(client->query.visited_view_list);
++#endif
+ 	client->query.timerset = false;
+ 	if (client->query.rpz_st != NULL) {
+ 		rpz_st_clear(client);
+@@ -896,6 +913,11 @@ ns_query_init(ns_client_t *client) {
+ 	ISC_LIST_INIT(client->query.namebufs);
+ 	ISC_LIST_INIT(client->query.activeversions);
+ 	ISC_LIST_INIT(client->query.freeversions);
++// TODO: check please
++#ifdef CONTRAIL_DNS
++	client->query.vdns_restarts = 0;
++	ISC_LIST_INIT(client->query.visited_view_list);
++#endif
+ 	/*
+ 	 * This mutex is destroyed when the client is destroyed in
+ 	 * exit_check().
+@@ -908,6 +930,49 @@ ns_query_init(ns_client_t *client) {
+ 	ns_client_newnamebuf(client);
+ }
+
++#ifdef CONTRAIL_DNS
++static inline bool
++is_view_valid(dns_view_t *check_view, dns_viewlist_t *viewlist)
++{
++    dns_view_t *view;
++    for (view = ISC_LIST_HEAD(*viewlist);
++     		view != NULL;
++     		view = ISC_LIST_NEXT(view, link)) {
++		if (check_view == view)
++			return true;
++	}
++    return false;
++}
++
++static inline bool
++is_view_visited(ns_client_t *client, dns_view_t *view)
++{
++    visited_views_t *visited_view;
++	for (visited_view = ISC_LIST_HEAD(client->query.visited_view_list);
++	     visited_view != NULL;
++	     visited_view = ISC_LIST_NEXT(visited_view, link)) {
++	        if (visited_view->view == view)
++	                return true;
++	}
++    return false;
++}
++
++static inline isc_result_t
++add_view_visited(ns_client_t *client, dns_view_t *view)
++{
++    visited_views_t *visited_view =
++	 isc_mem_get(client->manager->mctx, sizeof(*visited_view));
++    if (visited_view == NULL) {
++	 return (ISC_R_NOMEMORY);
++    }
++
++    visited_view->view = view;
++    ISC_LIST_INITANDAPPEND(client->query.visited_view_list,
++	                    visited_view, link);
++    return (ISC_R_SUCCESS);
++}
++#endif
++
+ /*%
+  * Check if 'client' is allowed to query the cache of its associated view.
+  * Unless 'options' has the 'nolog' flag set, log the result of cache ACL
+@@ -1042,9 +1107,16 @@ query_validatezonedb(ns_client_t *client, const dns_name_t *name,
+ 	 * zone content is not public data, but a part of local configuration
+ 	 * and should not be disclosed.
+ 	 */
++#ifdef CONTRAIL_DNS
++	dns_view_t *next_virtual_dns = dns_zone_getnextview(zone);
++	if (dns_zone_gettype(zone) == dns_zone_staticstub &&
++			(!next_virtual_dns || !is_view_valid(next_virtual_dns, named_viewlist)) &&
++			!RECURSIONOK(client)) {
++#else
+ 	if (dns_zone_gettype(zone) == dns_zone_staticstub &&
+ 	    !RECURSIONOK(client))
+ 	{
++#endif
+ 		return DNS_R_REFUSED;
+ 	}
+
+@@ -5078,6 +5150,9 @@ qctx_init(ns_client_t *client, dns_fetchresponse_t **frespp,
+ 	qctx->qtype = qctx->type = qtype;
+ 	qctx->result = ISC_R_SUCCESS;
+ 	qctx->findcoveringnsec = qctx->view->synthfromdnssec;
++#ifdef CONTRAIL_DNS
++	qctx->viewlist = named_viewlist;
++#endif
+
+ 	/*
+ 	 * If it's an RRSIG or SIG query, we'll iterate the node.
+@@ -5412,6 +5487,9 @@ ns__query_start(query_ctx_t *qctx) {
+ 	isc_result_t result = ISC_R_UNSET;
+ 	CCTRACE(ISC_LOG_DEBUG(3), "ns__query_start");
+ 	qctx->want_restart = false;
++#ifdef CONTRAIL_DNS
++	qctx->want_vdns_restart = false;
++#endif
+ 	qctx->authoritative = false;
+ 	qctx->version = NULL;
+ 	qctx->zversion = NULL;
+@@ -5591,6 +5669,24 @@ ns__query_start(query_ctx_t *qctx) {
+ 				qctx->authoritative = false;
+ 				break;
+ 			case dns_zone_staticstub:
++#ifdef CONTRAIL_DNS
++				/*
++				* If zone has a virtual forwarder, attach to the indicated view
++				*/
++				dns_view_t *next_virtual_dns = dns_zone_getnextview(qctx->zone);
++				if (qctx->zone != NULL &&
++					dns_zone_gettype(qctx->zone) == dns_zone_staticstub &&
++					next_virtual_dns && is_view_valid(next_virtual_dns, named_viewlist) &&
++					!is_view_visited(qctx->client, next_virtual_dns)) {
++					dns_view_detach(&qctx->client->view);
++					dns_view_attach(next_virtual_dns, &qctx->client->view);
++					if (add_view_visited(qctx->client, next_virtual_dns) != ISC_R_SUCCESS)
++						goto cleanup;
++					qctx->static_stub_vdns_zone = true;
++					qctx->want_vdns_restart = true;
++					goto cleanup;
++				}
++#endif
+ 				qctx->is_staticstub_zone = true;
+ 				break;
+ 			case dns_zone_primary:
+@@ -5608,7 +5704,12 @@ ns__query_start(query_ctx_t *qctx) {
+ 	 * Attach to the database which will be used to prepare the answer.
+ 	 * Update query statistics.
+ 	 */
++#ifdef CONTRAIL_DNS
++	if (qctx->fresp == NULL && qctx->client->query.restarts == 0 &&
++			qctx->client->query.vdns_restarts == 0) {
++#else
+ 	if (qctx->fresp == NULL && qctx->client->query.restarts == 0) {
++#endif
+ 		if (qctx->is_zone) {
+ 			if (qctx->zone != NULL) {
+ 				/*
+@@ -5887,6 +5988,9 @@ query_lookup(query_ctx_t *qctx) {
+ 		dns_cache_updatestats(qctx->view->cache, result);
+ 	}
+
++#ifdef CONTRAIL_DNS
++	qctx->db_find_result = result;
++#endif
+ 	/*
+ 	 * If DNS_DBFIND_STALEOK is set this means we are dealing with a
+ 	 * lookup following a failed lookup and it is okay to serve a stale
+@@ -6431,6 +6535,9 @@ query_resume(query_ctx_t *qctx) {
+
+ 	qctx->want_restart = false;
+
++#ifdef CONTRAIL_DNS
++	qctx->want_vdns_restart = false;
++#endif
+ 	qctx->rpz_st = qctx->client->query.rpz_st;
+ 	if (qctx->rpz_st != NULL &&
+ 	    (qctx->rpz_st->state & DNS_RPZ_RECURSING) != 0)
+@@ -8532,6 +8639,19 @@ query_notfound(query_ctx_t *qctx) {
+ 		 */
+ 		if (RECURSIONOK(qctx->client)) {
+ 			INSIST(!REDIRECT(qctx->client));
++#ifdef CONTRAIL_DNS
++			dns_view_t *next_virtual_dns = qctx->client->view->next_virtual_dns;
++			if (next_virtual_dns && is_view_valid(next_virtual_dns, named_viewlist) &&
++				!is_view_visited(qctx->client, next_virtual_dns)) {
++				dns_view_detach(&qctx->client->view);
++				dns_view_attach(next_virtual_dns, &qctx->client->view);
++				if (add_view_visited(qctx->client, next_virtual_dns) != ISC_R_SUCCESS)
++					goto cleanup;
++				qctx->want_vdns_restart = true;
++				goto cleanup;
++			}
++			qctx->static_stub_vdns_zone = false;
++#endif
+ 			result = ns_query_recurse(qctx->client, qctx->qtype,
+ 						  qctx->client->query.qname,
+ 						  NULL, NULL, qctx->resuming);
+@@ -8740,6 +8860,39 @@ query_delegation(query_ctx_t *qctx) {
+
+ 	CALL_HOOK(NS_QUERY_DELEGATION_BEGIN, qctx);
+
++#ifdef CONTRAIL_DNS
++	/*
++		* If it is an NS record, check if it is for a virtual DNS server,
++		* served by the same server. If it is, attach to the new view and
++		* restart query. Otherwise, continue with the normal processing.
++		*/
++	if (qctx->db_find_result == DNS_R_DELEGATION) {
++		char view_name[DNS_NAME_FORMATSIZE];
++		if (dns_rdataset_first(qctx->rdataset) == ISC_R_SUCCESS) {
++			/* Extract the name from the NS record.  */
++			dns_rdata_t rdata = DNS_RDATA_INIT;
++			dns_rdata_ns_t ns;
++			dns_rdataset_current(qctx->rdataset, &rdata);
++			if (dns_rdata_tostruct(&rdata, &ns, NULL) == ISC_R_SUCCESS) {
++				dns_view_t *view;
++				dns_name_format(&ns.name, view_name, DNS_NAME_FORMATSIZE);
++				for (view = ISC_LIST_HEAD(*qctx->viewlist);
++						view != NULL; view = ISC_LIST_NEXT(view, link)) {
++					if (strlen(view->name) == strlen(view_name) &&
++						memcmp(view->name, view_name, strlen(view_name)) == 0) {
++						/* Found the view, attach to it */
++						dns_view_detach(&qctx->client->view);
++						dns_view_attach(view, &qctx->client->view);
++						qctx->want_vdns_restart = true;
++						goto cleanup;
++					}
++				}
++			}
++		}
++	}
++	qctx->static_stub_vdns_zone = false;
++#endif
++
+ 	qctx->authoritative = false;
+
+ 	if (qctx->is_zone) {
+@@ -8817,6 +8970,24 @@ query_delegation_recurse(query_ctx_t *qctx) {
+ 		return ISC_R_COMPLETE;
+ 	}
+
++#ifdef CONTRAIL_DNS
++	/*
++		* We are ready to recurse; if next_virtual_dns is configured,
++		* change to that view and restart search
++		*/
++	dns_view_t *next_virtual_dns = qctx->client->view->next_virtual_dns;
++	if (next_virtual_dns && is_view_valid(next_virtual_dns, named_viewlist) &&
++		!is_view_visited(qctx->client, next_virtual_dns)) {
++		dns_view_detach(&qctx->client->view);
++		dns_view_attach(next_virtual_dns, &qctx->client->view);
++		if (add_view_visited(qctx->client, next_virtual_dns) != ISC_R_SUCCESS)
++			goto cleanup;
++		qctx->want_vdns_restart = true;
++		goto cleanup;
++	}
++	qctx->static_stub_vdns_zone = false;
++#endif
++
+ 	CALL_HOOK(NS_QUERY_DELEGATION_RECURSE_BEGIN, qctx);
+
+ 	/*
+@@ -11482,6 +11653,11 @@ ns_query_done(query_ctx_t *qctx) {
+ 		dns_db_detach(&qctx->client->query.gluedb);
+ 	}
+
++#ifdef CONTRAIL_DNS
++	if (qctx->static_stub_vdns_zone)
++		qctx->authoritative = true;
++#endif
++
+ 	/*
+ 	 * Clear the AA bit if we're not authoritative.
+ 	 */
+@@ -11493,6 +11669,21 @@ ns_query_done(query_ctx_t *qctx) {
+ 	/*
+ 	 * Do we need to restart the query (e.g. for CNAME chaining)?
+ 	 */
++#ifdef CONTRAIL_DNS
++	if (qctx->want_vdns_restart &&
++			qctx->client->query.restarts < qctx->client->view->max_restarts) {
++		qctx->client->query.vdns_restarts++;
++		query_ctx_t *saved_qctx = NULL;
++		saved_qctx = isc_mem_get(qctx->client->manager->mctx,
++						sizeof(*saved_qctx));
++		qctx_save(qctx, saved_qctx);
++		isc_nmhandle_attach(qctx->client->handle,
++					&qctx->client->restarthandle);
++		isc_async_run(qctx->client->manager->loop,
++					async_restart, saved_qctx);
++		return DNS_R_CONTINUE;
++	}
++#endif
+ 	if (qctx->want_restart) {
+ 		if (qctx->client->query.restarts <
+ 		    qctx->client->view->max_restarts)
+diff --git a/bind-9.21.3/lib/ns/server.c b/bind-9.21.3/lib/ns/server.c
+index 3aa90cd..54d896b 100644
+--- a/bind-9.21.3/lib/ns/server.c
++++ b/bind-9.21.3/lib/ns/server.c
+@@ -35,6 +35,12 @@
+ 		RUNTIME_CHECK(result == ISC_R_SUCCESS); \
+ 	} while (0)
+
++#ifdef CONTRAIL_DNS
++#include <named/globals.h>
++#include <dns/types.h>
++dns_viewlist_t *named_viewlist = NULL;
++#endif
++
+ void
+ ns_server_create(isc_mem_t *mctx, ns_matchview_t matchingview,
+ 		 ns_server_t **sctxp) {

@@ -300,6 +300,18 @@
     </patches>
   </package>
   <package>
+    <name>ISC Bind 9.21</name>
+    <urls>
+      <url>{{ site_mirror }}/contrail-third-party/b/bind-9.21.3.tar.gz</url>
+      <url canonical="true">http://www.mirrorservice.org/sites/ftp.isc.org/isc/bind9/9.21.3/bind-9.21.3.tar.xz</url>
+    </urls>
+    <format>xz</format>
+    <md5>136c350f121b2bdcdb88f3970d6cd2a9</md5>
+    <patches>
+      <patch strip="1">bind-9.21.3-patch1.diff</patch>
+    </patches>
+  </package>
+  <package>
     <name>vijava</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/v/vijava55b20130927src.jar</url>

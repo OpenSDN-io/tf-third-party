@@ -269,6 +269,8 @@ def ProcessPackage(pkg):
             dest = getTarDestination(ccfile, 'z')
         elif pkg_format == 'tbz':
             dest = getTarDestination(ccfile, 'j')
+        elif pkg_format == 'xz':
+            dest = getTarDestination(ccfile, '')
         elif pkg_format == 'zip':
             dest = getZipDestination(ccfile)
         elif pkg_format == 'folder':
@@ -284,6 +286,8 @@ def ProcessPackage(pkg):
         shutil_format = 'gztar'
     elif pkg_format == 'tbz':
         shutil_format = 'bztar'
+    elif pkg_format == 'xz':
+        shutil_format = 'xztar'
     elif pkg_format == 'zip':
         shutil_format = 'zip'
 
