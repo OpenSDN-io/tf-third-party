@@ -331,36 +331,6 @@
     </patches>
   </package>
   <package>
-    <name>Go 1.14</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/g/go1.14.2.linux-amd64.tar.gz</url>
-      <url canonical="true">https://storage.googleapis.com/golang/go1.14.2.linux-amd64.tar.gz</url>
-    </urls>
-    <local-filename>go1.14.2.linux-amd64.tar.gz</local-filename>
-    <format>tgz</format>
-    <md5>856d248e3ea8a287d13e5f6afd086282</md5>
-  </package>
-  <package>
-    <name>Golangci-lint</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/g/golangci-lint-1.17.1-linux-amd64.tar.gz</url>
-      <url canonical="true">https://github.com/golangci/golangci-lint/releases/download/v1.17.1/golangci-lint-1.17.1-linux-amd64.tar.gz</url>
-    </urls>
-    <local-filename>golangci-lint-1.17.1-linux-amd64.tar.gz</local-filename>
-    <rename>golangci-lint</rename>
-    <format>tgz</format>
-    <md5>d8c8fbd975b06778ccd8666026ecd09b</md5>
-  </package>
-  <package>
-    <name>Cni Go Deps</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/c/cni_go_deps.tar.gz</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/cni/cni_go_deps.tar.gz</url>
-    </urls>
-    <format>tgz</format>
-    <md5>823fcd824557fa0b6506e29d7591f76d</md5>
-  </package>
-  <package>
     <name>IPFIX library</name>
     <urls>
      <url>{{ site_mirror }}/contrail-third-party/l/libipfix_110209.tgz</url>
