@@ -190,14 +190,13 @@
     </patches>
   </package>
   <package>
-    <name>Pugi XML 1.2</name>
+    <name>Pugi XML 1.15</name>
     <urls>
-      <url>{{ site_mirror }}/contrail-third-party/p/pugixml-1.2.tar.gz</url>
-      <url canonical="true">https://github.com/zeux/pugixml/releases/download/v1.2/pugixml-1.2.tar.gz</url>
+      <url>{{ site_mirror }}/contrail-third-party/p/pugixml-1.15.tar.gz</url>
+      <url canonical="true">https://github.com/zeux/pugixml/releases/download/v1.15/pugixml-1.15.tar.gz</url>
     </urls>
-    <unpack-directory>pugixml</unpack-directory>
     <format>tgz</format>
-    <md5>477f4a7d75af0383f52ee6622b3f6035</md5>
+    <md5>3b894c29455eb33a40b165c6e2de5895</md5>
   </package>
   <package>
     <name>hiredis boostasio-adapter</name>
