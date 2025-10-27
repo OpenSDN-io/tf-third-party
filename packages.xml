@@ -70,57 +70,6 @@
     </platform>
   </package>
   <package>
-    <name>Google C++ Mocking Framework 1.6.0</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/g/googlemock-release-1.6.0.zip</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/googlemock-release-1.6.0.zip</url>
-    </urls>
-    <format>zip</format>
-    <rename>gmock-1.6.0</rename>
-    <md5>b51cc3e69a8ef16ac54cee9889b79646</md5>
-    <platform>
-      <exclude>
-        <distribution>
-          <name>ubuntu</name>
-          <version>14.04+</version>
-        </distribution>
-        <distribution>
-          <name>fedora</name>
-          <version>20+</version>
-        </distribution>
-        <distribution>
-          <name>suse</name>
-          <version>12+</version>
-        </distribution>
-      </exclude>
-    </platform>
-  </package>
-  <package>
-    <name>Google perftools</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/g/gperftools-2.1.1.tar.gz</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/gperftools-2.1.1.tar.gz</url>
-    </urls>
-    <format>tgz</format>
-    <md5>0cf0d05a1490fe443c2c672943b9910f</md5>
-    <platform>
-      <exclude>
-        <distribution>
-          <name>ubuntu</name>
-          <version>14.04+</version>
-        </distribution>
-        <distribution>
-          <name>fedora</name>
-          <version>20+</version>
-        </distribution>
-        <distribution>
-          <name>suse</name>
-          <version>12+</version>
-        </distribution>
-      </exclude>
-    </platform>
-  </package>
-  <package>
     <name>Minimalistic C client for Redis v0.11</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/h/hiredis-v0.11.0.tar.gz</url>
@@ -177,19 +126,6 @@
     </platform>
   </package>
   <package>
-    <name>Thread Building Blocks 4.4 2018 Update 5</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/l/libtbb/2018_U5.tar.gz</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/libtbb/2018_U5.tar.gz</url>
-    </urls>
-    <format>tgz</format>
-    <md5>ff3ae09f8c23892fbc3008c39f78288f</md5>
-    <patches>
-      <patch strip="2">tbb-2018_U5_patch1.diff</patch>
-      <patch strip="2">tbb-2018_U5_patch2.diff</patch>
-    </patches>
-  </package>
-  <package>
     <name>Pugi XML 1.15</name>
     <urls>
       <url>{{ site_mirror }}/contrail-third-party/p/pugixml-1.15.tar.gz</url>
@@ -231,9 +167,6 @@
     <local-filename>SimpleAmqpClient-2.4.0.tar.gz</local-filename>
     <format>tgz</format>
     <md5>fb86236ae98cd6116cbdf94d8d5f20b0</md5>
-    <patches>
-      <patch strip="2">amqp-opensdn-boost.diff</patch>
-    </patches>
   </package>
   <package>
     <name>RabbitMQ C</name>
@@ -247,42 +180,6 @@
     <md5>c15dbcd2dbb8e254c1de0494c1bb8c91</md5>
     <patches>
       <patch strip="2">rabbit_mq_c_tcp_keepalive_patch.diff</patch>
-    </patches>
-  </package>
-  <package>
-    <name>Bottle Python Web Framework</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/b/bottle-0.11.6.tar.gz</url>
-      <url canonical="true">https://pypi.python.org/packages/source/b/bottle/bottle-0.11.6.tar.gz</url>
-    </urls>
-    <format>tgz</format>
-    <md5>0bafdc4e13ea2b1a3bddf36b5af108c4</md5>
-    <patches>
-      <patch strip="2">bottle_patch1.diff</patch>
-    </patches>
-    <platform>
-      <exclude>
-        <distribution>
-          <name>ubuntu</name>
-          <version>14.04+</version>
-        </distribution>
-        <distribution>
-          <name>suse</name>
-          <version>12+</version>
-        </distribution>
-      </exclude>
-    </platform>
-  </package>
-  <package>
-    <name>JSON parser/generator for C++</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/r/rapidjson-v1.1.0.zip</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/googlecode/rapidjson-v1.1.0.zip</url>
-    </urls>
-    <format>zip</format>
-    <md5>4f82cc9f41b7d39afeeec10ff8b581b9</md5>
-    <patches>
-      <patch strip="2">rapidjson_patch1.diff</patch>
     </patches>
   </package>
   <package>
@@ -311,37 +208,6 @@
     </patches>
   </package>
   <package>
-    <name>vijava</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/v/vijava55b20130927src.jar</url>
-      <url canonical="true">https://github.com/opensdn-io/tf-third-party-cache/raw/master/vmware/vijava55b20130927src.jar</url>
-    </urls>
-    <local-filename>vijava55b20130927src.jar</local-filename>
-    <format>zip</format>
-    <md5>3993c5bf9323e55fe9e6c14c974ea155</md5>
-    <unpack-directory>vijava</unpack-directory>
-    <patches>
-      <patch strip="2">vijava_patch1.diff</patch>
-    </patches>
-  </package>
-  <package>
-    <name>Open vSwitch version 2.3.0</name>
-    <urls>
-      <url>{{ site_mirror }}/contrail-third-party/o/openvswitch-2.3.0.tar.gz</url>
-      <url canonical="true">http://openvswitch.org/releases/openvswitch-2.3.0.tar.gz</url>
-    </urls>
-    <local-filename>openvswitch-2.3.0.tar.gz</local-filename>
-    <format>tgz</format>
-    <md5>9c4d1471a56718132e0157af1bfc9310</md5>
-    <patches>
-      <patch strip="1">openvswitch.diff</patch>
-      <patch strip="0">openvswitch-ovsdb-idl-c.diff</patch>
-      <patch strip="0">openvswitch-makefilein-gcc8.diff</patch>
-      <patch strip="0">openvswitch-automakemk-gcc8.diff</patch>
-      <patch strip="0">openvswitch-dh-set0-pqg-gcc8.diff</patch>
-    </patches>
-  </package>
-  <package>
     <name>IPFIX library</name>
     <urls>
      <url>{{ site_mirror }}/contrail-third-party/l/libipfix_110209.tgz</url>
@@ -355,21 +221,4 @@
       <patch strip="1">libipfix_patch1.diff</patch>
     </patches>
   </package>
-  <package>
-    <name>compat-openssl10-debugsource-1.0.2o</name>
-    <urls>
-      <url>include/openssl</url>
-    </urls>
-    <local-filename>/usr/local/ssl/include/openssl</local-filename>
-    <format>folder</format>
-    <platform>
-      <include>
-        <distribution>
-          <name>redhat</name>
-          <version>8.4</version>
-        </distribution>
-      </include>
-    </platform>
-  </package>
-
 </packages>
