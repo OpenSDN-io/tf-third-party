@@ -52,7 +52,7 @@ index 4b624d7..0fe77f3 100644
  	const cfg_obj_t *alternates;
  	const cfg_obj_t *zonelist;
  	const cfg_obj_t *dlzlist;
-@@ -4741,6 +4760,14 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist, cfg_obj_t *config,
+@@ -4741,6 +4760,17 @@ configure_view(dns_view_t *view, dns_viewlist_t *viewlist, cfg_obj_t *config,
  		CHECK(configure_forward(config, view, dns_rootname, forwarders,
  					forwardtype));
  	}
@@ -60,6 +60,9 @@ index 4b624d7..0fe77f3 100644
 +	virtual_forwarder = NULL;
 +	(void)named_config_get(maps, "virtual-forwarder", &virtual_forwarder);
 +	if (virtual_forwarder != NULL) {
++		if (view->next_vdns_name != NULL) {
++			isc_mem_free(view->mctx, view->next_vdns_name);
++		}
 +		view->next_vdns_name = isc_mem_strdup(view->mctx,
 +		                       cfg_obj_asstring(virtual_forwarder));
 +	}
@@ -574,7 +577,7 @@ index ddb7ae2..299d638 100644
 
  	/* last stuff */
  	ZONEDB_DESTROYLOCK(&zone->dblock);
-@@ -1379,6 +1390,51 @@ zone_free(dns_zone_t *zone) {
+@@ -1379,6 +1390,54 @@ zone_free(dns_zone_t *zone) {
  	isc_mem_putanddetach(&zone->mctx, zone, sizeof(*zone));
  }
 
@@ -588,6 +591,9 @@ index ddb7ae2..299d638 100644
 +void
 +dns_zone_setnextvdnsname(dns_zone_t *zone, const char *name) {
 +	REQUIRE(DNS_ZONE_VALID(zone));
++	if (zone->next_vdns_name != NULL) {
++		isc_mem_free(zone->mctx, zone->next_vdns_name);
++	}
 +	zone->next_vdns_name = isc_mem_strdup(zone->mctx, name);
 +}
 +
@@ -804,7 +810,7 @@ index ee7b83a..c10020f 100644
 
  	CTRACE(ISC_LOG_DEBUG(3), "query_reset");
 
-@@ -852,6 +859,16 @@ query_reset(ns_client_t *client, bool everything) {
+@@ -852,6 +859,17 @@ query_reset(ns_client_t *client, bool everything) {
  	client->query.attributes = (NS_QUERYATTR_RECURSIONOK |
  				    NS_QUERYATTR_CACHEOK | NS_QUERYATTR_SECURE);
  	client->query.restarts = 0;
@@ -814,6 +820,7 @@ index ee7b83a..c10020f 100644
 +			visited_view != NULL;
 +			visited_view = next_view) {
 +		next_view = ISC_LIST_NEXT(visited_view, link);
++		ISC_LIST_UNLINK(client->query.visited_view_list, visited_view, link);
 +		isc_mem_put(client->manager->mctx, visited_view, sizeof(*visited_view));
 +	}
 +	ISC_LIST_INIT(client->query.visited_view_list);
