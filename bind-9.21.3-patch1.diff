@@ -16,13 +16,13 @@ index a739df0..f20b320 100644
  EXTERN unsigned int named_g_cpus	      INIT(0);
  EXTERN isc_loop_t *named_g_mainloop	      INIT(NULL);
 diff --git a/bind-9.21.3/bin/named/server.c b/bind-9.21.3/bin/named/server.c
-index 4b624d7..0fe77f3 100644
+index 4b624d7..1904995 100644
 --- a/bind-9.21.3/bin/named/server.c
 +++ b/bind-9.21.3/bin/named/server.c
 @@ -463,6 +463,22 @@ configure_forward(const cfg_obj_t *config, dns_view_t *view,
  		  const dns_name_t *origin, const cfg_obj_t *forwarders,
  		  const cfg_obj_t *forwardtype);
-
+ 
 +#ifdef CONTRAIL_DNS
 +static isc_result_t
 +configure_view_virtual_forward(dns_view_t *view);
@@ -67,13 +67,13 @@ index 4b624d7..0fe77f3 100644
 +		                       cfg_obj_asstring(virtual_forwarder));
 +	}
 +#endif
-
+ 
  	/*
  	 * Dual Stack Servers.
-@@ -6163,6 +6190,60 @@ cleanup:
+@@ -6163,6 +6193,66 @@ cleanup:
  	return result;
  }
-
+ 
 +#ifdef CONTRAIL_DNS
 +static isc_result_t
 +configure_view_virtual_forward(dns_view_t *view)
@@ -87,11 +87,17 @@ index 4b624d7..0fe77f3 100644
 +	result = dns_viewlist_find(&named_g_server->viewlist, view->next_vdns_name,
 +                               view->rdclass, &pview);
 +	if (result == ISC_R_SUCCESS) {
-+		view->next_virtual_dns = pview;
++		/* Detach old reference if exists */
++		if (view->next_virtual_dns != NULL)
++			dns_view_detach(&view->next_virtual_dns);
++		/* Attach new view to maintain reference count */
++		dns_view_attach(pview, &view->next_virtual_dns);
 +	}
 +	else if (result == ISC_R_NOTFOUND) {
-+		/* If not found, next_virtual_dns will get updated when */
-+		/* view is configured                                   */
++		/* If not found, ensure old reference is detached and pointer is NULL */
++		if (view->next_virtual_dns != NULL)
++			dns_view_detach(&view->next_virtual_dns);
++		view->next_virtual_dns = NULL;
 +		result = ISC_R_SUCCESS;
 +	}
 +
@@ -131,7 +137,7 @@ index 4b624d7..0fe77f3 100644
  static isc_result_t
  get_viewinfo(const cfg_obj_t *vconfig, const char **namep,
  	     dns_rdataclass_t *classp) {
-@@ -6298,6 +6379,9 @@ configure_zone(const cfg_obj_t *config, const cfg_obj_t *zconfig,
+@@ -6298,6 +6388,9 @@ configure_zone(const cfg_obj_t *config, const cfg_obj_t *zconfig,
  	dns_rdataclass_t zclass;
  	const char *ztypestr;
  	dns_rpz_num_t rpz_num;
@@ -141,10 +147,10 @@ index 4b624d7..0fe77f3 100644
  	bool zone_is_catz = false;
  	bool zone_maybe_inline = false;
  	bool inline_signing = false;
-@@ -6603,6 +6687,20 @@ configure_zone(const cfg_obj_t *config, const cfg_obj_t *zconfig,
+@@ -6603,6 +6696,20 @@ configure_zone(const cfg_obj_t *config, const cfg_obj_t *zconfig,
  					forwardtype));
  	}
-
+ 
 +#ifdef CONTRAIL_DNS
 +	/*
 +	 * If the zone is static-stub type, copy the virtual forwarder if defined
@@ -162,7 +168,7 @@ index 4b624d7..0fe77f3 100644
  	/*
  	 * Mark whether the zone was originally added at runtime or not
  	 */
-@@ -8898,6 +8996,12 @@ load_configuration(const char *filename, named_server_t *server,
+@@ -8898,6 +9005,12 @@ load_configuration(const char *filename, named_server_t *server,
  	     view = ISC_LIST_NEXT(view, link))
  	{
  		view->viewlist = &server->viewlist;
@@ -173,9 +179,9 @@ index 4b624d7..0fe77f3 100644
 +		configure_zone_virtual_forward(view);
 +#endif
  	}
-
+ 
  	/* Swap our new cache list with the production one. */
-@@ -9733,6 +9905,19 @@ get_matching_view_sync(isc_netaddr_t *srcaddr, isc_netaddr_t *destaddr,
+@@ -9733,6 +9846,19 @@ get_matching_view_sync(isc_netaddr_t *srcaddr, isc_netaddr_t *destaddr,
  		if (message->rdclass == view->rdclass ||
  		    message->rdclass == dns_rdataclass_any)
  		{
@@ -193,20 +199,20 @@ index 4b624d7..0fe77f3 100644
 +			}
 +#else
  			const dns_name_t *tsig = NULL;
-
+ 
  			dns_message_resetsig(message);
-@@ -9751,6 +9936,7 @@ get_matching_view_sync(isc_netaddr_t *srcaddr, isc_netaddr_t *destaddr,
+@@ -9751,6 +9877,7 @@ get_matching_view_sync(isc_netaddr_t *srcaddr, isc_netaddr_t *destaddr,
  				dns_view_attach(view, viewp);
  				return ISC_R_SUCCESS;
  			}
 +#endif
  		}
  	}
-
-@@ -9960,6 +10146,10 @@ named_server_create(isc_mem_t *mctx, named_server_t **serverp) {
+ 
+@@ -9960,6 +10087,10 @@ named_server_create(isc_mem_t *mctx, named_server_t **serverp) {
  	ISC_LIST_INIT(server->keystorelist);
  	ISC_LIST_INIT(server->viewlist);
-
+ 
 +#ifdef CONTRAIL_DNS
 +	named_viewlist = &server->viewlist;
 +#endif
@@ -532,10 +538,10 @@ index 096784d..42de5f2 100644
  	dctx = DNS_DECOMPRESS_ALWAYS;
 
 diff --git a/bind-9.21.3/lib/dns/view.c b/bind-9.21.3/lib/dns/view.c
-index 5251f7a..74f40d6 100644
+index 5251f7a..bdc3b50 100644
 --- a/bind-9.21.3/lib/dns/view.c
 +++ b/bind-9.21.3/lib/dns/view.c
-@@ -306,6 +306,12 @@ destroy(dns_view_t *view) {
+@@ -306,6 +306,14 @@ destroy(dns_view_t *view) {
  	if (view->matchdestinations != NULL) {
  		dns_acl_detach(&view->matchdestinations);
  	}
@@ -543,13 +549,15 @@ index 5251f7a..74f40d6 100644
 +	if (view->next_vdns_name != NULL)
 +		isc_mem_free(view->mctx, view->next_vdns_name);
 +	view->next_vdns_name = NULL;
++	if (view->next_virtual_dns != NULL)
++		dns_view_detach(&view->next_virtual_dns);
 +	view->next_virtual_dns = NULL;
 +#endif
  	if (view->cacheacl != NULL) {
  		dns_acl_detach(&view->cacheacl);
  	}
 diff --git a/bind-9.21.3/lib/dns/zone.c b/bind-9.21.3/lib/dns/zone.c
-index ddb7ae2..299d638 100644
+index ddb7ae2..df36ff9 100644
 --- a/bind-9.21.3/lib/dns/zone.c
 +++ b/bind-9.21.3/lib/dns/zone.c
 @@ -376,6 +376,11 @@ struct dns_zone {
@@ -564,7 +572,7 @@ index ddb7ae2..299d638 100644
  	/*%
  	 * Zones in certain states such as "waiting for zone transfer"
  	 * or "zone transfer in progress" are kept on per-state linked lists
-@@ -1371,6 +1376,12 @@ zone_free(dns_zone_t *zone) {
+@@ -1371,6 +1376,14 @@ zone_free(dns_zone_t *zone) {
  	if (zone->gluecachestats != NULL) {
  		isc_stats_detach(&zone->gluecachestats);
  	}
@@ -572,15 +580,17 @@ index ddb7ae2..299d638 100644
 +	if (zone->next_vdns_name != NULL)
 +		isc_mem_free(zone->mctx, zone->next_vdns_name);
 +	zone->next_vdns_name = NULL;
++	if (zone->zone_next_view != NULL)
++		dns_view_detach(&zone->zone_next_view);
 +	zone->zone_next_view = NULL;
 +#endif
-
+ 
  	/* last stuff */
  	ZONEDB_DESTROYLOCK(&zone->dblock);
-@@ -1379,6 +1390,54 @@ zone_free(dns_zone_t *zone) {
+@@ -1379,6 +1392,60 @@ zone_free(dns_zone_t *zone) {
  	isc_mem_putanddetach(&zone->mctx, zone, sizeof(*zone));
  }
-
+ 
 +#ifdef CONTRAIL_DNS
 +char *
 +dns_zone_getnextvdnsname(dns_zone_t *zone) {
@@ -613,11 +623,17 @@ index ddb7ae2..299d638 100644
 +		result = dns_viewlist_find(viewlist, zone->next_vdns_name,
 +					   zone->view->rdclass, &pview);
 +		if (result == ISC_R_SUCCESS) {
-+			zone->zone_next_view = pview;
++			/* Detach old reference if exists */
++			if (zone->zone_next_view != NULL)
++				dns_view_detach(&zone->zone_next_view);
++			/* Attach new view to maintain reference count */
++			dns_view_attach(pview, &zone->zone_next_view);
 +		}
 +		else if (result == ISC_R_NOTFOUND) {
-+			/* If not found, zone_next_view will get updated when */
-+			/* view is configured                                 */
++			/* If not found, ensure old reference is detached and pointer is NULL */
++			if (zone->zone_next_view != NULL)
++				dns_view_detach(&zone->zone_next_view);
++			zone->zone_next_view = NULL;
 +			result = ISC_R_SUCCESS;
 +		}
 +
