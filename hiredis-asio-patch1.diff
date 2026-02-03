@@ -5,13 +5,13 @@ index 2be99ad..b123fb5 100644
 @@ -1,8 +1,11 @@
  #include "boostasio.hpp"
  
-+#include <tbb/mutex.h>
++#include <mutex>
  
 -redisBoostClient::redisBoostClient(boost::asio::io_service& io_service,redisAsyncContext *ac)
 -: socket_(io_service)
 +
 +redisBoostClient::redisBoostClient(boost::asio::io_context& io_service,
-+        redisAsyncContext *ac, tbb::mutex& mtex)
++        redisAsyncContext *ac, std::mutex& mtex)
 +: socket_(io_service), mtex_(mtex), read_requested_(false), write_requested_(false), read_in_progress_(false), write_in_progress_(false), cleanup_(false)
  {
  
@@ -34,9 +34,9 @@ index 2be99ad..b123fb5 100644
  	
  void redisBoostClient::handle_read(boost::system::error_code ec)
  {
-+        if (cleanup_) return;
++	if (cleanup_) return;
 +
-+        tbb::mutex::scoped_lock lock(mtex_);
++	std::scoped_lock lock(mtex_);
  	read_in_progress_ = false;
  	if(!ec) {
  		redisAsyncHandleRead(context_);
@@ -44,9 +44,9 @@ index 2be99ad..b123fb5 100644
  
  void redisBoostClient::handle_write(boost::system::error_code ec)
  {
-+        if (cleanup_) return;
++	if (cleanup_) return;
 +
-+        tbb::mutex::scoped_lock lock(mtex_);
++	std::scoped_lock lock(mtex_);
  	write_in_progress_ = false;
  	if(!ec) {
  		redisAsyncHandleWrite(context_);
@@ -55,11 +55,11 @@ index 2be99ad..b123fb5 100644
  {
  	/*Do I even need this?*/
 -	printf("cleanup called...\n");	
-+        read_requested_ = false;
-+        write_requested_ = false;
-+        read_in_progress_ = false;
-+        write_in_progress_ = false;
-+        cleanup_ = true;
++	read_requested_ = false;
++	write_requested_ = false;
++	read_in_progress_ = false;
++	write_in_progress_ = false;
++	cleanup_ = true;
  }
  
  /*wrappers*/
@@ -73,7 +73,7 @@ index c24140a..8ae5cc0 100644
  #include <boost/bind.hpp>
 +#include <boost/enable_shared_from_this.hpp>
 +
-+#include <tbb/mutex.h>
++#include <mutex>
  
  using boost::asio::ip::tcp;
  
@@ -84,7 +84,7 @@ index c24140a..8ae5cc0 100644
 -        redisBoostClient(boost::asio::io_service& io_service,redisAsyncContext *ac);
 +        redisBoostClient(boost::asio::io_context& io_service,
 +                redisAsyncContext *ac,
-+                tbb::mutex &mtex);
++                std::mutex &mtex);
  
  	void operate();
  
@@ -94,7 +94,7 @@ index c24140a..8ae5cc0 100644
  private:
 -redisAsyncContext *context_;
  boost::asio::ip::tcp::socket socket_;
-+tbb::mutex &mtex_;
++std::mutex &mtex_;
 +redisAsyncContext *context_;
  bool read_requested_;
  bool write_requested_;
